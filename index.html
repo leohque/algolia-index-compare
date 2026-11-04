@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Index Compare</title>
+<script src="https://cdn.jsdelivr.net/npm/algoliasearch@5.20.0/dist/algoliasearch.umd.js"></script>
+<style>
+:root {
+  --bg: #f6f7fb; --panel: #ffffff; --ink: #1d2233; --muted: #6b7289; --line: #e3e6ef;
+  --a: #2f6bff; --a-soft: #e8efff; --b: #8a3ffc; --b-soft: #f1e9ff;
+  --add: #0f8a4f; --add-soft: #def5e8; --del: #c62f3a; --del-soft: #fde4e6;
+  --mov: #a56300; --mov-soft: #fff1d6; --hl: #fff7b3;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11131a; --panel: #1a1d27; --ink: #e6e8f0; --muted: #959bb0; --line: #2c3040;
+    --a: #6f97ff; --a-soft: #1d2847; --b: #b388ff; --b-soft: #2c2045;
+    --add: #4ccb8a; --add-soft: #16352a; --del: #ff7b85; --del-soft: #42202a;
+    --mov: #f0b44c; --mov-soft: #3d2f14; --hl: #4a4420;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11131a; --panel: #1a1d27; --ink: #e6e8f0; --muted: #959bb0; --line: #2c3040;
+  --a: #6f97ff; --a-soft: #1d2847; --b: #b388ff; --b-soft: #2c2045;
+  --add: #4ccb8a; --add-soft: #16352a; --del: #ff7b85; --del-soft: #42202a;
+  --mov: #f0b44c; --mov-soft: #3d2f14; --hl: #4a4420;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+header { padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+header h1 { font-size: 17px; margin: 0; }
+header .sub { color: var(--muted); font-size: 13px; }
+main { padding: 16px 20px 60px; max-width: 1500px; margin: 0 auto; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.panel h2 { font-size: 14px; margin: 0 0 10px; }
+.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+label { display: block; font-size: 12px; color: var(--muted); }
+label > input, label > textarea, label > select { margin-top: 3px; }
+input, textarea, select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; }
+textarea { font-family: var(--mono); font-size: 12px; resize: vertical; }
+button { padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+button.primary { background: var(--a); border-color: var(--a); color: #fff; font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.row > .grow { flex: 1 1 260px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--mov); background: var(--mov-soft); border-radius: 4px; }
+.note code { font-family: var(--mono); }
+.err { color: var(--del); background: var(--del-soft); border-radius: 7px; padding: 8px 12px; margin-bottom: 14px; white-space: pre-wrap; display: none; }
+.tagA, .tagB { display: inline-block; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 99px; color: #fff; }
+.tagA { background: var(--a); } .tagB { background: var(--b); }
+details.cfg > summary { cursor: pointer; font-weight: 600; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 14px; color: var(--muted); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--a); font-weight: 600; }
+.badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 99px; font-size: 11px; background: var(--del-soft); color: var(--del); margin-left: 4px; }
+.badge.zero { background: var(--add-soft); color: var(--add); }
+.tab { display: none; } .tab.on { display: block; }
+.kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 14px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.kpi .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.kpi .v { font-size: 18px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.kpi.bad { border-color: var(--del); } .kpi.good { border-color: var(--add); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+td.key { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+tr.diff > td.key { border-left: 3px solid var(--mov); }
+tr.onlyA > td.key, tr.onlyB > td.key { border-left: 3px solid var(--del); }
+tr.diff td.val, tr.onlyA td.val, tr.onlyB td.val { background: var(--mov-soft); }
+td.val { font-family: var(--mono); font-size: 12px; word-break: break-word; width: 42%; }
+.unset { color: var(--muted); font-style: italic; }
+ol.arr { margin: 0; padding-left: 22px; }
+ol.arr li { padding: 1px 4px; border-radius: 3px; }
+li.x-add { background: var(--add-soft); color: var(--add); font-weight: 600; }
+li.x-mov { background: var(--mov-soft); color: var(--mov); }
+pre { margin: 0; white-space: pre-wrap; font-family: var(--mono); font-size: 12px; }
+.toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
+.toolbar label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); font-size: 13px; }
+.toolbar input[type=checkbox] { width: auto; }
+.toolbar input[type=search] { width: 220px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 820px) { .cols { grid-template-columns: 1fr; } main { padding: 12px 16px 60px; } }
+.colhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+.colhead .name { font-family: var(--mono); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; margin-bottom: 8px; display: grid; grid-template-columns: 34px 1fr; gap: 10px; transition: background .1s; }
+.hit.hl { background: var(--hl); }
+.hit .pos { font-size: 18px; font-weight: 700; color: var(--muted); text-align: center; }
+.hit .st { display: block; font-size: 11px; font-weight: 700; margin-top: 2px; padding: 1px 0; border-radius: 4px; }
+.st.same { color: var(--muted); }
+.st.up { color: var(--add); background: var(--add-soft); }
+.st.down { color: var(--mov); background: var(--mov-soft); }
+.st.only { color: var(--del); background: var(--del-soft); }
+.hit.only { border-left: 4px solid var(--del); }
+.hit.moved { border-left: 4px solid var(--mov); }
+.hit .title { font-weight: 600; }
+.hit .oid { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.hit img { max-width: 64px; max-height: 64px; float: right; margin-left: 8px; border-radius: 5px; }
+.hit .attrs { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.ri { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ri span { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.ri span.d { background: var(--mov-soft); border-color: var(--mov); color: var(--mov); font-weight: 600; }
+.ri span.cr { border-style: dashed; }
+.meta td.val { width: 40%; }
+.batch tr { cursor: pointer; }
+.batch tr:hover td { background: var(--bg); }
+.bar { height: 6px; border-radius: 3px; background: var(--del-soft); overflow: hidden; min-width: 60px; }
+.bar > i { display: block; height: 100%; background: var(--add); }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+.mt { margin-top: 14px; }
+.empty { color: var(--muted); padding: 20px; text-align: center; }
+.legend { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.legend b { padding: 0 5px; border-radius: 3px; }
+.info { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; border-radius: 50%; border: 1px solid var(--muted); color: var(--muted); font: italic 700 11px/1 Georgia, serif; cursor: help; vertical-align: 1px; }
+.info:hover, .info:focus { color: var(--a); border-color: var(--a); outline: none; }
+.info .tip { display: none; position: absolute; top: 22px; left: -10px; z-index: 20; width: min(420px, calc(100vw - 40px)); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); box-shadow: 0 6px 24px rgba(0,0,0,.18); font: 12px/1.5 system-ui, sans-serif; cursor: default; }
+.info:hover .tip, .info:focus .tip, .info:focus-within .tip { display: block; }
+.info .tip ul { margin: 4px 0 8px; padding-left: 18px; }
+.info .tip code { font-family: var(--mono); font-size: 11px; }
+tr.idDiff > td.key { border-left: 3px solid var(--muted); }
+td.key.wrap { white-space: normal; word-break: break-all; max-width: 220px; }
+.sum { font-family: system-ui, sans-serif; font-size: 13px; margin-bottom: 4px; }
+.dp { margin: 3px 0; }
+.dp code { font-weight: 600; color: var(--mov); }
+.missing { color: var(--del); font-style: italic; font-family: system-ui, sans-serif; }
+details.json > summary { cursor: pointer; font-size: 11px; color: var(--muted); font-family: system-ui, sans-serif; margin-top: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Index Compare</h1>
+  <span class="sub">Multi-query two indices side by side: settings, results and ranking info</span>
+</header>
+<main>
+  <div class="err" id="err"></div>
+
+  <details class="panel cfg" id="cfgPanel" open>
+    <summary>Connection</summary>
+    <div class="grid mt">
+      <label>App ID <input id="appId" autocomplete="off" spellcheck="false"></label>
+      <label>API key <input id="apiKey" type="password" autocomplete="off"></label>
+      <label><span class="tagA">A</span> Index <input id="idxA" spellcheck="false" placeholder="dev_products"></label>
+      <label><span class="tagB">B</span> Index <input id="idxB" spellcheck="false" placeholder="dev_products_v2"></label>
+    </div>
+    <div class="row mt"><button class="primary" id="connect">Connect &amp; load settings</button></div>
+    <div class="note">
+      <b>Key requirements:</b> the API key needs the <code>search</code> ACL (multi-query with <code>getRankingInfo</code>)
+      <b>and</b> the <code>settings</code> ACL (to read both indices' settings, synonyms and rules). A plain search-only key will fail those loads.
+      Prefer a scoped key limited to these two indices over an Admin key. The key is kept in memory only and never saved.
+    </div>
+  </details>
+
+  <div class="panel">
+    <div class="row">
+      <label class="grow">Query <input id="q" type="search" placeholder="Search both indices (empty query allowed)"></label>
+      <button class="primary" id="run" disabled>Compare</button>
+    </div>
+    <details class="mt">
+      <summary style="cursor:pointer;font-size:13px">Shared search params &amp; display
+        <span class="info" tabindex="0" role="button" aria-label="What these options do" onclick="event.preventDefault();event.stopPropagation()">i
+          <span class="tip" role="tooltip">
+            <b>Search params</b> (sent identically to both indices):
+            <ul>
+              <li><code>filters</code>: an Algolia filter expression, e.g. <code>brand:"Acme" AND price &lt; 50</code>.</li>
+              <li><code>hitsPerPage</code>: how many results each side returns. This is also the depth used for overlap and rank-shift metrics.</li>
+              <li><b>Extra params (JSON)</b>: any other search parameter merged into both requests, e.g. <code>ruleContexts</code>, <code>optionalFilters</code>, <code>aroundLatLng</code>.</li>
+            </ul>
+            <b>Display</b> (only changes how hits look, no new query):
+            <ul>
+              <li><b>Title / Image attribute</b>: which record attribute is shown as the hit title and thumbnail. Leave empty to auto-detect (<code>title</code>, <code>name</code>, <code>image</code>…).</li>
+              <li><b>Extra attributes</b>: comma-separated attributes shown under each hit. Dot paths like <code>price.value</code> work.</li>
+            </ul>
+            Applies to the Results and Batch tabs.
+          </span>
+        </span>
+      </summary>
+      <div class="grid mt">
+        <label>filters <input id="filters" spellcheck="false" placeholder='brand:"Acme" AND price < 50'></label>
+        <label>hitsPerPage <input id="hpp" type="number" min="1" max="1000" value="20"></label>
+        <label>Title attribute <input id="titleAttr" list="attrList" spellcheck="false" placeholder="auto"></label>
+        <label>Image attribute <input id="imgAttr" list="attrList" spellcheck="false" placeholder="auto"></label>
+        <label>Extra attributes (comma) <input id="extraAttrs" list="attrList" spellcheck="false" placeholder="brand, price"></label>
+      </div>
+      <label class="mt">Extra params (JSON, merged into every request)
+        <textarea id="extra" rows="3" spellcheck="false" placeholder='{ "ruleContexts": ["mobile"], "aroundLatLngViaIP": false }'></textarea>
+      </label>
+      <datalist id="attrList"></datalist>
+      <div class="legend mt">Always sent: <code>getRankingInfo: true</code>, <code>analytics: false</code>, <code>clickAnalytics: false</code> (keeps dev testing out of analytics).</div>
+    </details>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="results" class="on">Results <span class="badge zero" id="bRes" hidden></span></button>
+    <button data-tab="settings">Settings <span class="badge zero" id="bSet" hidden></span></button>
+    <button data-tab="synonyms">Synonyms <span class="badge zero" id="bSyn" hidden></span></button>
+    <button data-tab="rules">Rules <span class="badge zero" id="bRul" hidden></span></button>
+    <button data-tab="batch">Batch</button>
+  </nav>
+
+  <section class="tab on" id="tab-results"><div class="empty">Connect, then run a query to compare result sets.</div></section>
+  <section class="tab" id="tab-settings"><div class="empty">Settings load when you connect.</div></section>
+  <section class="tab" id="tab-synonyms"><div class="empty">Synonyms load when you connect.</div></section>
+  <section class="tab" id="tab-rules"><div class="empty">Rules load when you connect.</div></section>
+  <section class="tab" id="tab-batch">
+    <div class="panel">
+      <label>Queries (one per line)
+        <textarea id="batchQ" rows="6" spellcheck="false" placeholder="shoes&#10;red dress&#10;iphone case"></textarea>
+      </label>
+      <div class="row mt">
+        <button class="primary" id="runBatch" disabled>Run batch</button>
+        <button id="copyCsv" disabled>Copy CSV</button>
+        <span id="batchStatus" class="legend"></span>
+      </div>
+    </div>
+    <div id="batchOut"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const S = { client: null, idx: { A: '', B: '' }, settings: { A: null, B: null }, last: null, batch: [], attrs: new Set() };
+  const CFG_KEY = 'index-compare-cfg';
+
+  // ---------- utils ----------
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const getPath = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+  const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.keys(x).sort().reduce((a, kk) => ((a[kk] = x[kk]), a), {}) : x));
+  const eq = (a, b) => stable(a) === stable(b);
+  const UNSET = '<span class="unset" title="Not explicitly set on this index, so the Algolia engine default applies">not set / default</span>';
+  const fmt = (v, unset = UNSET) => (v === undefined ? unset :typeof v === 'object' ? `<pre>${esc(JSON.stringify(v, null, 2))}</pre>` : esc(JSON.stringify(v)));
+  const short = (v) => (v === undefined ? '–' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const showErr = (m) => { const e = $('#err'); e.textContent = m || ''; e.style.display = m ? 'block' : 'none'; };
+  const errMsg = (e) => (e && (e.message || e.toString())) || 'Unknown error';
+
+  function loadCfg() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+      ['appId', 'idxA', 'idxB', 'filters', 'hpp', 'titleAttr', 'imgAttr', 'extraAttrs', 'extra', 'batchQ'].forEach((k) => { if (c[k] != null) $('#' + k).value = c[k]; });
+    } catch (_) {}
+  }
+  function saveCfg() {
+    try {
+      const c = {};
+      ['appId', 'idxA', 'idxB', 'filters', 'hpp', 'titleAttr', 'imgAttr', 'extraAttrs', 'extra', 'batchQ'].forEach((k) => (c[k] = $('#' + k).value));
+      localStorage.setItem(CFG_KEY, JSON.stringify(c)); // never the API key
+    } catch (_) {}
+  }
+
+  // ---------- tabs ----------
+  $('#tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]'); if (!b) return;
+    document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.id === 'tab-' + b.dataset.tab));
+  });
+  const goTab = (name) => $(`#tabs button[data-tab="${name}"]`).click();
+  function setBadge(id, n) { const b = $(id); b.hidden = false; b.textContent = n; b.classList.toggle('zero', n === 0); }
+
+  // ---------- connect & settings ----------
+  $('#connect').addEventListener('click', async () => {
+    showErr('');
+    const appId = $('#appId').value.trim(), key = $('#apiKey').value.trim();
+    S.idx.A = $('#idxA').value.trim(); S.idx.B = $('#idxB').value.trim();
+    if (!appId || !key || !S.idx.A || !S.idx.B) return showErr('App ID, API key and both index names are required.');
+    if (!window.algoliasearch) return showErr('algoliasearch failed to load from the CDN.');
+    saveCfg();
+    S.client = window.algoliasearch.algoliasearch(appId, key);
+    $('#connect').disabled = true; $('#connect').textContent = 'Loading…';
+    const [a, b, sa, sb, ra, rb] = await Promise.allSettled([
+      S.client.getSettings({ indexName: S.idx.A }), S.client.getSettings({ indexName: S.idx.B }),
+      fetchSynonyms(S.idx.A), fetchSynonyms(S.idx.B), fetchRules(S.idx.A), fetchRules(S.idx.B),
+    ]);
+    $('#connect').disabled = false; $('#connect').textContent = 'Reconnect & reload';
+    const errs = [];
+    const take = (r, label) => (r.status === 'fulfilled' ? r.value : (errs.push(`${label}: ${errMsg(r.reason)}`), null));
+    S.settings.A = take(a, `settings A (${S.idx.A})`); S.settings.B = take(b, `settings B (${S.idx.B})`);
+    S.syn = { A: take(sa, `synonyms A (${S.idx.A})`), B: take(sb, `synonyms B (${S.idx.B})`) };
+    S.rules = { A: take(ra, `rules A (${S.idx.A})`), B: take(rb, `rules B (${S.idx.B})`) };
+    if (errs.length) showErr('Loading failed — does the key have the "settings" ACL and access to both indices?\n' + errs.join('\n'));
+    $('#run').disabled = $('#runBatch').disabled = false;
+    renderSettings();
+    renderListDiff(SYN_CFG);
+    renderListDiff(RULE_CFG);
+    if (!errs.length) { $('#cfgPanel').open = false; runSingle(); }
+  });
+
+  function arrDiff(arr, other) {
+    const o = Array.isArray(other) ? other.map(stable) : [];
+    return `<ol class="arr">${arr.map((it, i) => {
+      const s = stable(it), j = o.indexOf(s);
+      const cls = j === -1 ? 'x-add' : j !== i ? 'x-mov' : '';
+      const hint = j === -1 ? ' title="Not in the other index"' : j !== i ? ` title="Position ${j + 1} in the other index"` : '';
+      return `<li class="${cls}"${hint}>${esc(typeof it === 'string' ? it : JSON.stringify(it))}</li>`;
+    }).join('')}</ol>`;
+  }
+  const cell = (v, other) => (Array.isArray(v) && v.length && v.every((x) => typeof x !== 'object' || x === null) ? arrDiff(v, other) : fmt(v));
+
+  function settingsRows() {
+    const A = S.settings.A || {}, B = S.settings.B || {};
+    const keys = [...new Set([...Object.keys(A), ...Object.keys(B)])];
+    return keys.map((k) => {
+      const inA = k in A, inB = k in B;
+      const kind = inA && !inB ? 'onlyA' : !inA && inB ? 'onlyB' : eq(A[k], B[k]) ? 'same' : 'diff';
+      return { k, a: A[k], b: B[k], kind };
+    }).sort((x, y) => (x.kind === 'same') - (y.kind === 'same') || x.k.localeCompare(y.k));
+  }
+
+  function renderSettings() {
+    const el = $('#tab-settings');
+    if (!S.settings.A && !S.settings.B) { el.innerHTML = '<div class="empty">Settings could not be loaded (see error above).</div>'; return; }
+    const rows = settingsRows();
+    const n = { diff: 0, onlyA: 0, onlyB: 0, same: 0 }; rows.forEach((r) => n[r.kind]++);
+    const nd = n.diff + n.onlyA + n.onlyB;
+    setBadge('#bSet', nd);
+    el.innerHTML = `
+      <div class="kpis">
+        <div class="kpi ${nd ? 'bad' : 'good'}"><div class="k">Differing settings</div><div class="v">${nd}</div></div>
+        <div class="kpi"><div class="k">Changed value</div><div class="v">${n.diff}</div></div>
+        <div class="kpi"><div class="k">Set only in A</div><div class="v">${n.onlyA}</div></div>
+        <div class="kpi"><div class="k">Set only in B</div><div class="v">${n.onlyB}</div></div>
+        <div class="kpi"><div class="k">Identical</div><div class="v">${n.same}</div></div>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <label><input type="checkbox" id="onlyDiff" checked> Differences only</label>
+          <input type="search" id="setFilter" placeholder="Filter settings…">
+          <span class="legend">Array items: <b class="x-add" style="background:var(--add-soft);color:var(--add)">not in other</b> <b style="background:var(--mov-soft);color:var(--mov)">different position</b> · <i>not set / default</i> = not explicitly set on that index, so the engine default applies</span>
+        </div>
+        <table><thead><tr><th>Setting</th><th><span class="tagA">A</span> ${esc(S.idx.A)}</th><th><span class="tagB">B</span> ${esc(S.idx.B)}</th></tr></thead>
+        <tbody id="setBody"></tbody></table>
+      </div>`;
+    const paint = () => {
+      const only = $('#onlyDiff').checked, f = $('#setFilter').value.trim().toLowerCase();
+      const vis = rows.filter((r) => (!only || r.kind !== 'same') && (!f || r.k.toLowerCase().includes(f)));
+      $('#setBody').innerHTML = vis.length ? vis.map((r) => `<tr class="${r.kind}"><td class="key">${esc(r.k)}</td><td class="val">${cell(r.a, r.b)}</td><td class="val">${cell(r.b, r.a)}</td></tr>`).join('')
+        : `<tr><td colspan="3" class="empty">${only && !f ? 'No differences — settings are identical.' : 'No matching settings.'}</td></tr>`;
+    };
+    $('#onlyDiff').addEventListener('change', paint);
+    $('#setFilter').addEventListener('input', paint);
+    paint();
+  }
+
+  // ---------- synonyms & rules ----------
+  async function fetchPaged(fn) {
+    const out = [];
+    for (let page = 0; page < 500; page++) {
+      const r = await fn(page);
+      out.push(...r.hits);
+      if (r.hits.length < 1000) break;
+    }
+    return out;
+  }
+  const fetchSynonyms = (indexName) => fetchPaged((page) => S.client.searchSynonyms({ indexName, searchSynonymsParams: { query: '', page, hitsPerPage: 1000 } }));
+  const fetchRules = (indexName) => fetchPaged((page) => S.client.searchRules({ indexName, searchRulesParams: { query: '', page, hitsPerPage: 1000 } }));
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('_')));
+
+  // Flatten to leaf dot-paths (arrays are leaves) so a changed item shows exactly which fields differ.
+  function flatten(o, pre = '', out = {}) {
+    Object.entries(o || {}).forEach(([k, v]) => {
+      const p = pre ? pre + '.' + k : k;
+      if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) flatten(v, p, out); else out[p] = v;
+    });
+    return out;
+  }
+
+  const SYN_CFG = {
+    key: 'syn', el: '#tab-synonyms', badge: '#bSyn', noun: 'synonyms', data: () => S.syn,
+    // Order of words in a synonym set does not change behaviour, so compare them sorted.
+    norm: (s) => { const x = clean(s); ['synonyms', 'corrections', 'replacements'].forEach((k) => Array.isArray(x[k]) && (x[k] = [...x[k]].sort())); return x; },
+    summary: (s) => {
+      const j = (a) => (a || []).join(', ');
+      const body = s.type === 'oneWaySynonym' ? `${s.input} → ${j(s.synonyms)}`
+        : /^altCorrection/.test(s.type) ? `${s.word} → ${j(s.corrections)}`
+        : s.type === 'placeholder' ? `${s.placeholder} → ${j(s.replacements)}` : j(s.synonyms);
+      return `<b>${esc(s.type || '?')}</b>: ${esc(body)}`;
+    },
+  };
+  const RULE_CFG = {
+    key: 'rul', el: '#tab-rules', badge: '#bRul', noun: 'rules', data: () => S.rules,
+    norm: clean,
+    summary: (r) => {
+      const conds = (r.conditions || []).map((c) => [c.anchoring, c.pattern != null && `"${c.pattern}"`, c.context && `context:${c.context}`, c.filters && `filters:${c.filters}`, c.alternatives && 'alternatives'].filter(Boolean).join(' ')).join(' | ') || 'no condition (always)';
+      const cons = Object.keys(r.consequence || {}).join(', ') || 'none';
+      return `${r.enabled === false ? '<b style="color:var(--del)">disabled</b> · ' : ''}${r.description ? `<b>${esc(r.description)}</b><br>` : ''}if ${esc(conds)} → ${esc(cons)}`;
+    },
+  };
+
+  function listDiff(A, B, norm) {
+    const nA = A.map(norm), nB = B.map(norm);
+    const mA = new Map(nA.map((x) => [x.objectID, x])), mB = new Map(nB.map((x) => [x.objectID, x]));
+    const rows = [];
+    nA.forEach((a) => { const b = mB.get(a.objectID); rows.push({ id: a.objectID, a, b, kind: !b ? 'onlyA' : eq(a, b) ? 'same' : 'diff' }); });
+    nB.forEach((b) => { if (!mA.has(b.objectID)) rows.push({ id: b.objectID, a: undefined, b, kind: 'onlyB' }); });
+    // Pair up items that are identical apart from objectID (e.g. re-created synonyms/rules).
+    const sig = (x) => stable({ ...x, objectID: undefined });
+    const freeB = new Map();
+    rows.filter((r) => r.kind === 'onlyB').forEach((r) => { const s = sig(r.b); if (!freeB.has(s)) freeB.set(s, []); freeB.get(s).push(r); });
+    rows.filter((r) => r.kind === 'onlyA').forEach((r) => {
+      const m = (freeB.get(sig(r.a)) || []).shift();
+      if (m) { r.kind = 'idDiff'; r.b = m.b; r.id = `${r.a.objectID} ↔ ${m.b.objectID}`; m.kind = 'drop'; }
+    });
+    const order = { diff: 0, onlyA: 1, onlyB: 2, idDiff: 3, same: 4 };
+    return rows.filter((r) => r.kind !== 'drop').sort((x, y) => order[x.kind] - order[y.kind] || String(x.id).localeCompare(String(y.id)));
+  }
+
+  function itemCell(cfg, x, other, kind, side) {
+    if (x === undefined) return `<span class="missing">missing in ${side}</span>`;
+    let html = `<div class="sum">${cfg.summary(x)}</div>`;
+    if (kind === 'diff') {
+      const fx = flatten(x), fo = flatten(other);
+      const paths = [...new Set([...Object.keys(fx), ...Object.keys(fo)])].filter((p) => p !== 'objectID' && !eq(fx[p], fo[p])).sort();
+      html += paths.map((p) => `<div class="dp"><code>${esc(p)}</code>: ${fx[p] === undefined ? '<span class="unset">not set</span>' : esc(JSON.stringify(fx[p]))}</div>`).join('');
+    }
+    return html + `<details class="json"><summary>full JSON</summary><pre>${esc(JSON.stringify(x, null, 2))}</pre></details>`;
+  }
+
+  function renderListDiff(cfg) {
+    const el = $(cfg.el), d = cfg.data();
+    if (!d || !d.A || !d.B) { el.innerHTML = `<div class="empty">${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} could not be loaded for both indices (see error above).</div>`; return; }
+    const rows = listDiff(d.A, d.B, cfg.norm);
+    const n = { diff: 0, onlyA: 0, onlyB: 0, idDiff: 0, same: 0 }; rows.forEach((r) => n[r.kind]++);
+    const nd = n.diff + n.onlyA + n.onlyB;
+    setBadge(cfg.badge, nd);
+    const k = cfg.key;
+    el.innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="k">Count A / B</div><div class="v">${d.A.length} <small>/</small> ${d.B.length}</div></div>
+        <div class="kpi ${nd ? 'bad' : 'good'}"><div class="k">Differences</div><div class="v">${nd}</div></div>
+        <div class="kpi"><div class="k">Changed (same objectID)</div><div class="v">${n.diff}</div></div>
+        <div class="kpi"><div class="k">Only in A</div><div class="v">${n.onlyA}</div></div>
+        <div class="kpi"><div class="k">Only in B</div><div class="v">${n.onlyB}</div></div>
+        <div class="kpi"><div class="k">Same content, other objectID</div><div class="v">${n.idDiff}</div></div>
+        <div class="kpi"><div class="k">Identical</div><div class="v">${n.same}</div></div>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <label><input type="checkbox" id="${k}OnlyDiff" checked> Differences only</label>
+          <input type="search" id="${k}Filter" placeholder="Filter by objectID or content…">
+          <span class="legend">Matched by objectID. Changed items list only the differing fields${cfg.key === 'syn' ? ' (word order inside a synonym set is ignored)' : ''}. Grey edge = identical content saved under a different objectID.</span>
+        </div>
+        <table><thead><tr><th>objectID</th><th><span class="tagA">A</span> ${esc(S.idx.A)}</th><th><span class="tagB">B</span> ${esc(S.idx.B)}</th></tr></thead>
+        <tbody id="${k}Body"></tbody></table>
+      </div>`;
+    const paint = () => {
+      const only = $(`#${k}OnlyDiff`).checked, f = $(`#${k}Filter`).value.trim().toLowerCase();
+      const vis = rows.filter((r) => (!only || (r.kind !== 'same' && r.kind !== 'idDiff')) && (!f || (String(r.id) + stable(r.a || {}) + stable(r.b || {})).toLowerCase().includes(f)));
+      $(`#${k}Body`).innerHTML = vis.length ? vis.slice(0, 500).map((r) => `<tr class="${r.kind}"><td class="key wrap">${esc(r.id)}</td>
+        <td class="val">${itemCell(cfg, r.a, r.b, r.kind, 'A')}</td><td class="val">${itemCell(cfg, r.b, r.a, r.kind, 'B')}</td></tr>`).join('')
+        + (vis.length > 500 ? `<tr><td colspan="3" class="empty">Showing 500 of ${vis.length}. Use the filter to narrow down.</td></tr>` : '')
+        : `<tr><td colspan="3" class="empty">${only && !f ? `No differences: ${cfg.noun} match.` : 'Nothing matches.'}</td></tr>`;
+    };
+    $(`#${k}OnlyDiff`).addEventListener('change', paint);
+    $(`#${k}Filter`).addEventListener('input', paint);
+    paint();
+  }
+
+  // ---------- search ----------
+  function baseParams() {
+    const p = { getRankingInfo: true, analytics: false, clickAnalytics: false, hitsPerPage: Number($('#hpp').value) || 20 };
+    const f = $('#filters').value.trim(); if (f) p.filters = f;
+    const x = $('#extra').value.trim();
+    if (x) {
+      let parsed; try { parsed = JSON.parse(x); } catch (e) { throw new Error('Extra params is not valid JSON: ' + e.message); }
+      Object.assign(p, parsed);
+    }
+    p.getRankingInfo = true;
+    return p;
+  }
+  const reqsFor = (query, p) => [{ indexName: S.idx.A, query, ...p }, { indexName: S.idx.B, query, ...p }];
+
+  function compare(hA, hB) {
+    const pa = new Map(hA.map((h, i) => [h.objectID, i])), pb = new Map(hB.map((h, i) => [h.objectID, i]));
+    let shared = 0, shift = 0, moved = 0;
+    pa.forEach((i, id) => { if (pb.has(id)) { shared++; const d = Math.abs(i - pb.get(id)); shift += d; if (d) moved++; } });
+    const denom = Math.max(hA.length, hB.length);
+    return {
+      pa, pb, shared, moved,
+      overlap: denom ? shared / denom : 1,
+      avgShift: shared ? shift / shared : 0,
+      onlyA: hA.length - shared, onlyB: hB.length - shared,
+      top1: hA.length && hB.length ? hA[0].objectID === hB[0].objectID : hA.length === hB.length,
+      identical: hA.length === hB.length && hA.every((h, i) => h.objectID === hB[i].objectID),
+    };
+  }
+
+  async function runSingle() {
+    if (!S.client) return;
+    showErr('');
+    let p; try { p = baseParams(); } catch (e) { return showErr(e.message); }
+    saveCfg();
+    const query = $('#q').value;
+    $('#run').disabled = true;
+    try {
+      const res = await S.client.search({ requests: reqsFor(query, p) });
+      const [A, B] = res.results;
+      S.last = { query, A, B, cmp: compare(A.hits, B.hits) };
+      collectAttrs(A.hits.concat(B.hits));
+      renderResults();
+    } catch (e) { showErr('Search failed: ' + errMsg(e)); }
+    finally { $('#run').disabled = false; }
+  }
+  $('#run').addEventListener('click', runSingle);
+  $('#q').addEventListener('keydown', (e) => { if (e.key === 'Enter') runSingle(); });
+  ['titleAttr', 'imgAttr', 'extraAttrs'].forEach((id) => $('#' + id).addEventListener('change', () => { saveCfg(); S.last && renderResults(); }));
+
+  function collectAttrs(hits) {
+    hits.forEach((h) => Object.keys(h).forEach((k) => {
+      if (k.startsWith('_')) return;
+      S.attrs.add(k);
+      if (h[k] && typeof h[k] === 'object' && !Array.isArray(h[k])) Object.keys(h[k]).forEach((kk) => S.attrs.add(k + '.' + kk));
+    }));
+    $('#attrList').innerHTML = [...S.attrs].sort().map((a) => `<option value="${esc(a)}">`).join('');
+  }
+
+  const TITLE_GUESS = ['title', 'name', 'product_name', 'productName', 'label', 'headline'];
+  const IMG_GUESS = ['image', 'image_url', 'imageUrl', 'thumbnail', 'img', 'picture', 'images'];
+  function pick(h, attr, guesses) {
+    if (attr) return getPath(h, attr);
+    for (const g of guesses) if (h[g] != null) return h[g];
+  }
+
+  // Custom-ranking attributes from either index's settings, shown with each hit's value.
+  function customRankAttrs() {
+    const list = [].concat((S.settings.A || {}).customRanking || [], (S.settings.B || {}).customRanking || []);
+    return [...new Set(list.map((c) => c.replace(/^(asc|desc)\((.*)\)$/, '$2')))];
+  }
+
+  function riCells(h, other) {
+    const r = h._rankingInfo || {}, o = other ? other._rankingInfo || {} : null;
+    const skip = new Set(['serverUsed', 'serverTimeMS', 'timeoutCounts', 'timeoutHits']);
+    const keys = [...new Set([...Object.keys(r), ...(o ? Object.keys(o) : [])])].filter((k) => !skip.has(k));
+    const onlyD = $('#riOnlyDiff') && $('#riOnlyDiff').checked;
+    const cells = keys.map((k) => {
+      const d = o && !eq(r[k], o[k]);
+      if (onlyD && !d) return '';
+      return `<span class="${d ? 'd' : ''}" title="${d ? 'Other side: ' + esc(short(o[k])) : ''}">${esc(k)}=${esc(short(r[k]))}</span>`;
+    });
+    customRankAttrs().forEach((a) => {
+      const v = getPath(h, a), ov = other ? getPath(other, a) : undefined;
+      const d = other && !eq(v, ov);
+      if (onlyD && !d) return;
+      cells.push(`<span class="cr ${d ? 'd' : ''}" title="customRanking attribute">${esc(a)}=${esc(short(v))}</span>`);
+    });
+    return cells.join('');
+  }
+
+  function hitCard(h, i, side) {
+    const { cmp, A, B } = S.last;
+    const otherPos = (side === 'A' ? cmp.pb : cmp.pa).get(h.objectID);
+    const other = otherPos === undefined ? null : (side === 'A' ? B : A).hits[otherPos];
+    let st, cls = '';
+    if (otherPos === undefined) { st = `<span class="st only" title="Not in the other result set">only ${side}</span>`; cls = 'only'; }
+    else if (otherPos === i) st = '<span class="st same" title="Same position">=</span>';
+    else {
+      const d = otherPos - i; cls = 'moved';
+      st = d > 0 ? `<span class="st up" title="Ranked ${d} higher here than in the other index (#${otherPos + 1} there)">▲${d}</span>`
+                 : `<span class="st down" title="Ranked ${-d} lower here than in the other index (#${otherPos + 1} there)">▼${-d}</span>`;
+    }
+    const title = pick(h, $('#titleAttr').value.trim(), TITLE_GUESS);
+    let img = pick(h, $('#imgAttr').value.trim(), IMG_GUESS); if (Array.isArray(img)) img = img[0];
+    if (img && typeof img === 'object') img = img.url || img.src;
+    const extras = $('#extraAttrs').value.split(',').map((s) => s.trim()).filter(Boolean)
+      .map((a) => `<b>${esc(a)}:</b> ${esc(short(getPath(h, a)))}`).join(' · ');
+    const showRI = $('#riShow') ? $('#riShow').checked : true;
+    return `<div class="hit ${cls}" data-oid="${esc(h.objectID)}">
+      <div class="pos">${i + 1}${st}</div>
+      <div>
+        ${typeof img === 'string' && /^(https?:)?\/\//.test(img) ? `<img src="${esc(img)}" alt="" loading="lazy">` : ''}
+        <div class="title">${title != null ? esc(short(title)) : '<span class="unset">(no title attribute)</span>'}</div>
+        <div class="oid">objectID: ${esc(h.objectID)}</div>
+        ${extras ? `<div class="attrs">${extras}</div>` : ''}
+        ${showRI ? `<div class="ri">${riCells(h, other)}</div>` : ''}
+      </div></div>`;
+  }
+
+  const ABSENT = '<span class="unset">not in response</span>';
+  const META_KEYS = ['nbHits', 'nbPages', 'processingTimeMS', 'exhaustiveNbHits', 'parsedQuery', 'queryAfterRemoval', 'appliedRules', 'appliedRelevancyStrictness', 'nbSortedHits', 'userData', 'renderingContent', 'facets_stats', 'abTestID', 'abTestVariantID', 'index', 'indexUsed', 'message'];
+
+  function renderResults() {
+    const { A, B, cmp, query } = S.last;
+    const el = $('#tab-results');
+    const diffs = cmp.onlyA + cmp.onlyB + cmp.moved;
+    setBadge('#bRes', diffs);
+    const pct = (x) => Math.round(x * 100) + '%';
+    const metaRows = META_KEYS.filter((k) => k in A || k in B).map((k) => {
+      const d = !eq(A[k], B[k]) && k !== 'processingTimeMS' && k !== 'index' && k !== 'indexUsed';
+      return `<tr class="${d ? 'diff' : 'same'}"><td class="key">${esc(k)}</td><td class="val">${fmt(A[k], ABSENT)}</td><td class="val">${fmt(B[k], ABSENT)}</td></tr>`;
+    }).join('');
+    const prevRI = $('#riShow') ? $('#riShow').checked : true, prevOD = $('#riOnlyDiff') ? $('#riOnlyDiff').checked : false;
+    el.innerHTML = `
+      <div class="kpis">
+        <div class="kpi ${cmp.identical ? 'good' : 'bad'}"><div class="k">Result order</div><div class="v">${cmp.identical ? 'Identical' : 'Different'}</div></div>
+        <div class="kpi"><div class="k">nbHits A / B</div><div class="v">${A.nbHits.toLocaleString()} <small>/</small> ${B.nbHits.toLocaleString()}</div></div>
+        <div class="kpi ${cmp.overlap < 1 ? 'bad' : 'good'}"><div class="k">Overlap (top ${Math.max(A.hits.length, B.hits.length)})</div><div class="v">${pct(cmp.overlap)} <small>${cmp.shared} shared</small></div></div>
+        <div class="kpi ${cmp.top1 ? 'good' : 'bad'}"><div class="k">Same #1 result</div><div class="v">${cmp.top1 ? 'Yes' : 'No'}</div></div>
+        <div class="kpi"><div class="k">Moved / avg shift</div><div class="v">${cmp.moved} <small>avg ${cmp.avgShift.toFixed(1)} pos</small></div></div>
+        <div class="kpi"><div class="k">Only in A / B</div><div class="v">${cmp.onlyA} <small>/</small> ${cmp.onlyB}</div></div>
+        <div class="kpi"><div class="k">Time A / B</div><div class="v">${A.processingTimeMS} <small>/</small> ${B.processingTimeMS} <small>ms</small></div></div>
+      </div>
+      <details class="panel meta"><summary style="cursor:pointer;font-weight:600">Response metadata for “${esc(query)}”</summary>
+        <table class="mt"><thead><tr><th>Field</th><th><span class="tagA">A</span></th><th><span class="tagB">B</span></th></tr></thead><tbody>${metaRows}</tbody></table>
+      </details>
+      <div class="toolbar">
+        <label><input type="checkbox" id="riShow" ${prevRI ? 'checked' : ''}> Show ranking info</label>
+        <label><input type="checkbox" id="riOnlyDiff" ${prevOD ? 'checked' : ''}> Only differing ranking fields</label>
+        <span class="legend">Hover a hit to highlight it on both sides · <b style="background:var(--add-soft);color:var(--add)">▲ higher here</b> <b style="background:var(--mov-soft);color:var(--mov)">▼ lower here</b> <b style="background:var(--del-soft);color:var(--del)">only in one</b> · dashed = customRanking attribute</span>
+      </div>
+      <div class="cols">
+        <div><div class="colhead"><span class="name"><span class="tagA">A</span> ${esc(S.idx.A)}</span></div>
+          ${A.hits.map((h, i) => hitCard(h, i, 'A')).join('') || '<div class="empty">No hits</div>'}</div>
+        <div><div class="colhead"><span class="name"><span class="tagB">B</span> ${esc(S.idx.B)}</span></div>
+          ${B.hits.map((h, i) => hitCard(h, i, 'B')).join('') || '<div class="empty">No hits</div>'}</div>
+      </div>`;
+    $('#riShow').addEventListener('change', renderResults);
+    $('#riOnlyDiff').addEventListener('change', renderResults);
+    const cols = el.querySelector('.cols');
+    const hl = (oid, on) => cols.querySelectorAll('.hit').forEach((c) => c.dataset.oid === oid && c.classList.toggle('hl', on));
+    cols.addEventListener('mouseover', (e) => { const c = e.target.closest('.hit'); if (c) hl(c.dataset.oid, true); });
+    cols.addEventListener('mouseout', (e) => { const c = e.target.closest('.hit'); if (c) hl(c.dataset.oid, false); });
+  }
+
+  // ---------- batch ----------
+  $('#runBatch').addEventListener('click', async () => {
+    if (!S.client) return;
+    showErr('');
+    let p; try { p = baseParams(); } catch (e) { return showErr(e.message); }
+    saveCfg();
+    const qs = [...new Set($('#batchQ').value.split('\n').map((s) => s.trim()).filter(Boolean))];
+    if (!qs.length) return showErr('Add at least one query.');
+    $('#runBatch').disabled = true;
+    S.batch = [];
+    const CHUNK = 25; // 25 queries = 50 requests per multi-query call
+    try {
+      for (let i = 0; i < qs.length; i += CHUNK) {
+        $('#batchStatus').textContent = `Running ${Math.min(i + CHUNK, qs.length)} / ${qs.length}…`;
+        const chunk = qs.slice(i, i + CHUNK);
+        const res = await S.client.search({ requests: chunk.flatMap((q) => reqsFor(q, p)) });
+        chunk.forEach((q, j) => {
+          const A = res.results[j * 2], B = res.results[j * 2 + 1];
+          S.batch.push({ q, nbA: A.nbHits, nbB: B.nbHits, ...compare(A.hits, B.hits) });
+        });
+      }
+      $('#batchStatus').textContent = `${qs.length} queries · ${qs.length * 2} requests`;
+      renderBatch();
+    } catch (e) { showErr('Batch failed: ' + errMsg(e)); $('#batchStatus').textContent = ''; }
+    finally { $('#runBatch').disabled = false; }
+  });
+
+  function renderBatch() {
+    const rows = [...S.batch].sort((a, b) => a.overlap - b.overlap || b.avgShift - a.avgShift);
+    const same = rows.filter((r) => r.identical).length;
+    const avgOv = rows.reduce((s, r) => s + r.overlap, 0) / rows.length;
+    $('#copyCsv').disabled = false;
+    $('#batchOut').innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="k">Queries</div><div class="v">${rows.length}</div></div>
+        <div class="kpi ${same === rows.length ? 'good' : 'bad'}"><div class="k">Identical order</div><div class="v">${same} <small>/ ${rows.length}</small></div></div>
+        <div class="kpi"><div class="k">Avg overlap</div><div class="v">${Math.round(avgOv * 100)}%</div></div>
+        <div class="kpi"><div class="k">Different #1</div><div class="v">${rows.filter((r) => !r.top1).length}</div></div>
+      </div>
+      <div class="panel"><div class="legend" style="margin-bottom:8px">Sorted most-different first. Click a row to open it side by side.</div>
+      <table class="batch"><thead><tr><th>Query</th><th class="num">nbHits A</th><th class="num">nbHits B</th><th>Overlap</th><th class="num">Only A</th><th class="num">Only B</th><th class="num">Moved</th><th class="num">Avg shift</th><th>Same #1</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr data-q="${esc(r.q)}" class="${r.identical ? 'same' : ''}">
+        <td>${esc(r.q)}</td>
+        <td class="num">${r.nbA.toLocaleString()}</td>
+        <td class="num" style="${r.nbA !== r.nbB ? 'color:var(--mov);font-weight:600' : ''}">${r.nbB.toLocaleString()}</td>
+        <td><div style="display:flex;gap:6px;align-items:center"><div class="bar" style="flex:1"><i style="width:${r.overlap * 100}%"></i></div>${Math.round(r.overlap * 100)}%</div></td>
+        <td class="num">${r.onlyA}</td><td class="num">${r.onlyB}</td><td class="num">${r.moved}</td><td class="num">${r.avgShift.toFixed(1)}</td>
+        <td style="color:${r.top1 ? 'var(--add)' : 'var(--del)'};font-weight:600">${r.top1 ? 'Yes' : 'No'}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#batchOut').querySelector('tbody').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-q]'); if (!tr) return;
+      $('#q').value = tr.dataset.q; goTab('results'); runSingle();
+    });
+  }
+
+  $('#copyCsv').addEventListener('click', async () => {
+    const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
+    const lines = [['query', 'nbHits_A', 'nbHits_B', 'overlap', 'only_A', 'only_B', 'moved', 'avg_shift', 'same_top1', 'identical'].join(',')]
+      .concat(S.batch.map((r) => [q(r.q), r.nbA, r.nbB, r.overlap.toFixed(3), r.onlyA, r.onlyB, r.moved, r.avgShift.toFixed(2), r.top1, r.identical].join(',')));
+    try { await navigator.clipboard.writeText(lines.join('\n')); $('#batchStatus').textContent = 'CSV copied to clipboard'; }
+    catch (_) { showErr('Clipboard unavailable in this context.'); }
+  });
+
+  loadCfg();
+})();
+</script>
+</body>
+</html>
