@@ -37,8 +37,10 @@ The key only lives in the page while it's open. It's **never saved**, so you'll 
 
 ## 2. Open the app
 
-You should be able to run this tool by simply opening index.html
+You should be able to run this tool by simply opening **index.html**
 
+
+OR
 You can also run it via
 
 ```bash
