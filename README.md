@@ -37,11 +37,9 @@ The key only lives in the page while it's open. It's **never saved**, so you'll 
 
 ## 2. Open the app
 
-In a terminal:
+You should be able to run this tool by simply opening index.html
 
-```bash
-cd ~/Code/index-compare
-```
+You can also run it via
 
 ```bash
 python3 -m http.server 8130
